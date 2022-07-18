@@ -23,8 +23,49 @@ const users = [
   }
 ];
 
+//refresh token database
+let refreshTokens = [];
+
+const generateAccessToken = (user) => {
+  return jwt.sign({ id: user.id, isAdmin: user.isAdmin }, process.env.SECRET_KEY, {
+    expiresIn: "45s",
+  });
+};
+
+const generateRefreshToken = (user) => {
+  return jwt.sign({ id: user.id, isAdmin: user.isAdmin }, process.env.REFRESH_KEY);
+};
+
 app.get("/", (req, res) => {
   res.send("hi")
+});
+
+//refresh token post route
+app.post("/api/refresh", (req, res) => {
+  //take the refresh token generated during login
+  const refreshToken = req.body.token;
+  console.log(refreshTokens);
+
+  //send error if there is no token or it's invalid
+  if (!refreshToken) return res.status(401).json("You are not authenticated!");
+  if (!refreshTokens.includes(refreshToken)) {
+    return res.status(403).json("Refresh token is not valid!");
+  }
+
+  jwt.verify(refreshToken, process.env.REFRESH_KEY, (err, user) => {
+    if (err) console.log(err);
+    refreshTokens = refreshTokens.filter((token) => token !== refreshToken);
+
+    const newAccessToken = generateAccessToken(user);
+    const newRefreshToken = generateRefreshToken(user);
+
+    refreshTokens.push(newRefreshToken);
+
+    res.status(200).json({
+      accessToken: newAccessToken,
+      refreshToken: newRefreshToken,
+    });
+  })
 });
 
 //login post route
@@ -33,12 +74,18 @@ app.post("/api/login", (req, res) => {
   const foundUser = users.find(user => user.username === username && user.password === password);
   if (foundUser) {
     //Generate access token
-    const accessToken = jwt.sign({ id: foundUser.id, isAdmin: foundUser.isAdmin }, process.env.SECRET_KEY);
+    const accessToken = generateAccessToken(foundUser);
+     //Generate refresh token
+     const refreshToken = generateRefreshToken(foundUser);
+
+     //save the refreshtoken in the refresh token database
+     refreshTokens.push(refreshToken);
 
     res.json({
       username: foundUser.username,
       isAdmin: foundUser.isAdmin,
-      accessToken
+      accessToken,
+      refreshToken
     });
   }  else res.status(401).json("Username/Password incorrect")
 });
@@ -69,8 +116,6 @@ app.get("/api/pr", verify, (req, res) => {
   } else {
     return res.status(403).json("Not authenticated");
   }
-
-  
 });
 
 app.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
