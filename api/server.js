@@ -90,7 +90,7 @@ app.post("/api/login", (req, res) => {
   }  else res.status(401).json("Username/Password incorrect")
 });
 
-//middleware verify function
+//middleware verify function for protected route
 const verify = (req, res, next) => {
   const authHeader = req.headers.authorization;
   if (authHeader) {
@@ -116,6 +116,13 @@ app.get("/api/pr", verify, (req, res) => {
   } else {
     return res.status(403).json("Not authenticated");
   }
+});
+
+//logout route to delete the refresh token
+app.post("/api/logout", verify, (req, res) => {
+  const refreshToken = req.body.token;
+  refreshTokens = refreshTokens.filter((token) => token !== refreshToken);
+  res.status(200).json("You logged out successfully.");
 });
 
 app.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
